@@ -1,0 +1,1196 @@
+// This is your Prisma schema file for LOCAL DEVELOPMENT with SQLite
+// For production, switch to PostgreSQL by changing the provider and URL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================================
+// USER & AUTHENTICATION
+// =====================================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  bio           String?
+  iban          String?
+  password      String?
+  roleId        String?
+  role          UserRole? @relation(fields: [roleId], references: [id])
+  legacyRole    String    @default("USER")
+  status        String    @default("ACTIVE")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  tools             Tool[]
+  blogPosts         BlogPost[]
+  companies         Company[]
+  reviews           UserReview[]
+  activityLogs      ActivityLog[]
+  notifications     Notification[]
+  blogComments      BlogComment[]
+  blogPostRevisions BlogPostRevision[]
+  blogApprovals     BlogPostApproval[]
+  blogTemplates     BlogPostTemplate[]
+  subscriptions     UserSubscription[]
+  events            SubscriptionEvent[]
+  invoices          Invoice[]
+  usage             UsageTracking[]
+  settings          UserSettings?
+
+  @@index([email])
+  @@index([status])
+}
+
+// =====================================================
+// USER SETTINGS
+// =====================================================
+
+model UserSettings {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  language           String    @default("en")
+  timezone           String    @default("UTC")
+  emailNotifications Boolean   @default(true)
+  marketingEmails    Boolean   @default(false)
+  publicProfile      Boolean   @default(false)
+  weeklyToolDigest   Boolean   @default(true)
+  lastDigestSentAt   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// =====================================================
+// PASSWORD RESET TOKENS
+// =====================================================
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+// =====================================================
+// ACCOUNTS & SESSIONS (NextAuth.js)
+// =====================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// =====================================================
+// SUBSCRIPTION & BILLING
+// =====================================================
+
+model SubscriptionPlan {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  description  String?
+  monthlyPrice Int      // Stored in cents (integer) for precision
+  yearlyPrice  Int      // Stored in cents (integer) for precision
+  trialDays    Int      @default(0)
+  features     String   @default("[]")
+  limits       String   @default("{}")
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+
+  subscriptions UserSubscription[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model UserSubscription {
+  id                   String           @id @default(cuid())
+  userId               String
+  planId               String
+  plan                 SubscriptionPlan @relation(fields: [planId], references: [id])
+  status               String           @default("active")
+  billingCycle         String
+  currentPeriodStart   DateTime         @default(now())
+  currentPeriodEnd     DateTime
+  trialStart           DateTime?
+  trialEnd             DateTime?
+  canceledAt           DateTime?
+  cancelAtPeriodEnd    Boolean          @default(false)
+  paymentProvider      String?
+  couponId             String?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @default(now())
+
+  user   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events SubscriptionEvent[]
+
+  @@index([userId])
+  @@index([planId])
+  @@index([status])
+  @@index([stripeSubscriptionId])
+}
+
+model SubscriptionEvent {
+  id             String           @id @default(cuid())
+  subscriptionId String
+  subscription   UserSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType      String
+  fromPlanId     String?
+  toPlanId       String?
+  metadata       String?
+  createdAt      DateTime         @default(now())
+
+  @@index([subscriptionId])
+  @@index([userId])
+  @@index([eventType])
+}
+
+model SubscriptionCoupon {
+  id                 String    @id @default(cuid())
+  code               String    @unique
+  name               String?
+  description        String?
+  discountType       String    // "percentage" or "fixed"
+  discountValue      Float     // Percentage (e.g. 20) or fixed amount in cents
+  currency           String    @default("USD")
+  maxRedemptions     Int?
+  currentRedemptions Int       @default(0)
+  applicablePlans    String    @default("[]") // JSON array of plan slugs
+  minAmount          Int?      // Minimum amount in cents for coupon to apply
+  validFrom          DateTime  @default(now())
+  validUntil         DateTime?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @default(now())
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model UsageTracking {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metric      String
+  count       Int      @default(0)
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  @@unique([userId, metric, periodStart])
+  @@index([userId])
+  @@index([metric])
+}
+
+model Invoice {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  invoiceNumber  String    @unique
+  amount         Int       // Stored in cents for precision
+  currency       String    @default("USD")
+  status         String    @default("pending")
+  lineItems      String?   // JSON array of line items
+  dueDate        DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// =====================================================
+// BILLING TRANSACTIONS (Precise financial records)
+// =====================================================
+
+model BillingTransaction {
+  id              String   @id @default(cuid())
+  userId          String
+  type            String   // "subscription", "refund", "credit", "debit", "payout"
+  amount          Int      // Stored in cents (integer) for precision
+  currency        String   @default("USD")
+  status          String   @default("pending") // "pending", "completed", "failed", "refunded"
+  description     String?
+  referenceId     String?  // ID of related entity (subscription, invoice, etc.)
+  referenceType   String?  // "subscription", "invoice", "payout"
+  metadata        String?  // JSON for additional data
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// =====================================================
+// ROLE & PERMISSION MANAGEMENT (RBAC)
+// =====================================================
+
+model UserRole {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  level       Int      @default(0)
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  users       User[]
+  permissions Permission[]
+
+  @@index([slug])
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  resource    String
+  action      String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  roles UserRole[]
+
+  @@unique([resource, action])
+  @@index([slug])
+}
+
+// =====================================================
+// CONTENT MODELS
+// =====================================================
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  tools Tool[]
+
+  @@index([slug])
+}
+
+model Tool {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  title        String
+  description  String
+  content      String
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id])
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id])
+  pricing      String   @default("unknown")
+  hasFreeTier  Boolean  @default(false)
+  hasApi       Boolean  @default(false)
+  platforms    String   @default("[]")
+  features     String   @default("[]")
+  pros         String   @default("[]")
+  cons         String   @default("[]")
+  useCases     String   @default("[]")
+  integrations String   @default("[]")
+  websiteUrl   String?
+  rating       Float?
+  published    Boolean  @default(true)
+  featured     Boolean  @default(false)
+  authorId     String?
+  author       User?    @relation(fields: [authorId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+
+  review              Review?
+  alternative         Alternative?
+  faqs                Faq[]
+  clicks              AffiliateClick[]
+  views               ToolView[]
+  reviews             UserReview[]
+  revenueTransactions RevenueTransaction[]
+  affiliateLinks      AffiliateLink[]
+  featuredListings    FeaturedListing[]
+  adCampaigns         AdCampaign[]
+
+  @@index([categoryId])
+  @@index([published])
+  @@index([featured])
+  @@index([companyId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  toolId    String   @unique
+  tool      Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  rating    Float
+  content   String
+  summary   String?
+  authorId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([rating])
+}
+
+model Alternative {
+  id        String   @id @default(cuid())
+  toolId    String   @unique
+  tool      Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model Faq {
+  id        String   @id @default(cuid())
+  toolId    String
+  tool      Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  question  String
+  answer    String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([toolId])
+}
+
+model BlogCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  posts     BlogPost[]
+  templates BlogPostTemplate[]
+
+  @@index([slug])
+}
+
+model BlogPost {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  title          String
+  description    String?
+  content        String
+  excerpt        String?
+  coverImage     String?
+  thumbnailImage String?
+  imageAlt       String?
+  categoryId     String?
+  category       BlogCategory? @relation(fields: [categoryId], references: [id])
+  featured       Boolean       @default(false)
+  published      Boolean       @default(false)
+  publishedAt    DateTime?
+  status         String        @default("DRAFT")
+  authorId       String?
+  author         User?         @relation(fields: [authorId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now())
+  tags           String        @default("[]")
+
+  seoTitle        String?
+  seoDescription  String?
+  seoCanonicalUrl String?
+  seoOgImage      String?
+  seoNoIndex      Boolean @default(false)
+
+  blogPostTags        BlogPostTag[]
+  comments            BlogComment[]
+  views               BlogPostView[]
+  revisions           BlogPostRevision[]
+  newsletterCampaigns NewsletterCampaign[]
+  approvals           BlogPostApproval[]
+
+  @@index([published])
+  @@index([featured])
+  @@index([categoryId])
+  @@index([status])
+  @@index([published, publishedAt])
+}
+
+model BlogTag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  blogPostTags BlogPostTag[]
+
+  @@index([slug])
+}
+
+model BlogPostTag {
+  id        String   @id @default(cuid())
+  postId    String
+  post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, tagId])
+  @@index([postId])
+  @@index([tagId])
+}
+
+model BlogComment {
+  id          String   @id @default(cuid())
+  postId      String
+  post        BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  authorName  String?
+  authorEmail String?
+  content     String
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  @@index([postId])
+  @@index([userId])
+  @@index([status])
+  @@index([postId, status])
+}
+
+model BlogPostView {
+  id        String   @id @default(cuid())
+  postId    String
+  post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  sessionId String?
+  ipAddress String?
+  userAgent String?
+  country   String?
+  device    String   @default("desktop")
+  referrer  String?
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+  @@index([createdAt])
+  @@index([sessionId])
+}
+
+model BlogPostRevision {
+  id          String   @id @default(cuid())
+  postId      String
+  post        BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  title       String
+  slug        String
+  content     String
+  excerpt     String?
+  description String?
+  categoryId  String?
+  authorId    String?
+  author      User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([postId])
+  @@index([createdAt])
+}
+
+model BlogPostApproval {
+  id        String   @id @default(cuid())
+  postId    String
+  post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  action    String
+  notes     String?
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+  @@index([createdAt])
+}
+
+model BlogPostTemplate {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?
+  titleTemplate   String?
+  contentTemplate String
+  categoryId      String?
+  category        BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdById     String?
+  createdBy       User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now())
+
+  @@index([categoryId])
+}
+
+// =====================================================
+// COMPANY MANAGEMENT
+// =====================================================
+
+model Company {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  logo         String?
+  website      String?
+  description  String?
+  industry     String?
+  size         String?
+  founded      Int?
+  headquarters String?
+  email        String?
+  phone        String?
+  status       String   @default("ACTIVE")
+  verified     Boolean  @default(false)
+  ownerId      String?
+  owner        User?    @relation(fields: [ownerId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+
+  tools               Tool[]
+  revenueTransactions RevenueTransaction[]
+
+  @@index([slug])
+  @@index([status])
+  @@index([verified])
+}
+
+// =====================================================
+// USER REVIEWS
+// =====================================================
+
+model UserReview {
+  id        String   @id @default(cuid())
+  toolId    String
+  tool      Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Float
+  title     String?
+  content   String
+  pros      String   @default("[]")
+  cons      String   @default("[]")
+  verified  Boolean  @default(false)
+  helpful   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@unique([toolId, userId])
+  @@index([toolId])
+  @@index([userId])
+  @@index([rating])
+}
+
+// =====================================================
+// AFFILIATE SYSTEM
+// =====================================================
+
+model AffiliateClick {
+  id        String            @id @default(cuid())
+  toolId    String
+  tool      Tool              @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  partnerId String?
+  partner   AffiliatePartner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  linkId    String?           // Reference to the generated affiliate link
+  source    String?
+  medium    String?
+  campaign  String?
+  term      String?           // UTM term
+  content   String?           // UTM content
+  ipAddress String?
+  userAgent String?
+  referrer  String?
+  country   String?
+  device    String?           // "desktop", "mobile", "tablet"
+  converted Boolean           @default(false)
+  conversionValue Int?        // Value in cents if converted
+  clickedAt DateTime          @default(now())
+
+  @@index([toolId])
+  @@index([partnerId])
+  @@index([linkId])
+  @@index([clickedAt])
+  @@index([converted])
+}
+
+model AffiliatePartner {
+  id          String    @id @default(cuid())
+  name        String
+  email       String    @unique
+  code        String    @unique
+  apiToken    String?   @unique
+  commission  Float     @default(10.0) // Percentage
+  commissionType String @default("percentage") // "percentage" or "fixed"
+  fixedCommission Int?  // Fixed amount in cents per conversion
+  status      String    @default("ACTIVE")
+  clicks      Int       @default(0)
+  conversions Int       @default(0)
+  earnings    Float     @default(0) // In cents for precision
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
+
+  affiliateClicks     AffiliateClick[]
+  revenueTransactions RevenueTransaction[]
+  affiliateLinks      AffiliateLink[]
+
+  @@index([code])
+  @@index([apiToken])
+  @@index([status])
+}
+
+model AffiliateLink {
+  id          String           @id @default(cuid())
+  partnerId   String
+  partner     AffiliatePartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  toolId      String
+  tool        Tool             @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  slug        String           @unique // Short unique slug for the link
+  url         String           // The full affiliate URL
+  source      String?          // Default UTM source
+  medium      String?          // Default UTM medium
+  campaign    String?          // Default UTM campaign
+  term        String?          // Default UTM term
+  content     String?          // Default UTM content
+  isActive    Boolean          @default(true)
+  clicks      Int              @default(0)
+  conversions Int              @default(0)
+  earnings    Float            @default(0) // In cents
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now())
+
+  @@index([partnerId])
+  @@index([toolId])
+  @@index([slug])
+  @@index([isActive])
+}
+
+// =====================================================
+// FEATURED / SPONSORED LISTINGS
+// =====================================================
+
+model FeaturedListing {
+  id          String   @id @default(cuid())
+  toolId      String
+  tool        Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  type        String   @default("featured") // "featured", "sponsored", "promoted"
+  label       String?  // Custom label like "Sponsored", "Partner", etc.
+  startDate   DateTime
+  endDate     DateTime
+  amount      Int      // Amount paid in cents
+  status      String   @default("active") // "active", "expired", "cancelled"
+  sortOrder   Int      @default(0) // Higher = more prominent
+  metadata    String?  // JSON for additional data
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  @@index([toolId])
+  @@index([type])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@index([sortOrder])
+}
+
+// =====================================================
+// ADVERTISEMENTS
+// =====================================================
+
+model Advertisement {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String?
+  linkUrl     String
+  position    String   // "sidebar", "header", "footer", "inline", "popup"
+  type        String   // "banner", "native", "popup", "video"
+  startDate   DateTime
+  endDate     DateTime
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  budget      Int?     // Budget in cents
+  spent       Int      @default(0) // Spent in cents
+  dailyBudget Int?     // Daily budget in cents
+  targetUrl   String?  // Where the ad links to
+  targetAudience String? // JSON targeting criteria
+  status      String   @default("DRAFT") // "DRAFT", "ACTIVE", "PAUSED", "EXPIRED"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  adImpressions AdImpression[]
+  adClicks      AdClick[]
+
+  @@index([position])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model AdImpression {
+  id              String        @id @default(cuid())
+  advertisementId String
+  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  sessionId       String?
+  ipAddress       String?
+  userAgent       String?
+  country         String?
+  device          String?
+  cost            Int?          // Cost per impression in cents (CPM model)
+  createdAt       DateTime      @default(now())
+
+  @@index([advertisementId])
+  @@index([createdAt])
+}
+
+model AdClick {
+  id              String        @id @default(cuid())
+  advertisementId String
+  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  sessionId       String?
+  ipAddress       String?
+  userAgent       String?
+  country         String?
+  device          String?
+  cost            Int?          // Cost per click in cents (CPC model)
+  converted       Boolean       @default(false)
+  conversionValue Int?          // Value in cents if converted
+  createdAt       DateTime      @default(now())
+
+  @@index([advertisementId])
+  @@index([createdAt])
+}
+
+// =====================================================
+// AD CAMPAIGNS (for tool-specific promotions)
+// =====================================================
+
+model AdCampaign {
+  id          String   @id @default(cuid())
+  toolId      String
+  tool        Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  name        String
+  budget      Int      // Total budget in cents
+  spent       Int      @default(0) // Spent in cents
+  dailyBudget Int?     // Daily budget in cents
+  startDate   DateTime
+  endDate     DateTime
+  targetClicks    Int?
+  targetImpressions Int?
+  status      String   @default("DRAFT") // "DRAFT", "ACTIVE", "PAUSED", "COMPLETED"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  @@index([toolId])
+  @@index([status])
+}
+
+// =====================================================
+// COUPONS
+// =====================================================
+
+model Coupon {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  description  String?
+  discount     Float
+  discountType String   // "PERCENTAGE" or "FIXED"
+  minPurchase  Int?     // Minimum purchase in cents
+  maxDiscount  Int?     // Maximum discount in cents
+  usageLimit   Int?
+  usedCount    Int      @default(0)
+  toolId       String?
+  startDate    DateTime
+  endDate      DateTime
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+
+  @@index([code])
+  @@index([status])
+}
+
+// =====================================================
+// NEWSLETTER
+// =====================================================
+
+model NewsletterSubscriber {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  source         String?
+  status         String    @default("ACTIVE")
+  subscribedAt   DateTime  @default(now())
+  unsubscribedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now())
+
+  @@index([email])
+  @@index([status])
+}
+
+// =====================================================
+// NOTIFICATIONS
+// =====================================================
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  message   String
+  data      String?
+  read      Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+}
+
+// =====================================================
+// MEDIA LIBRARY
+// =====================================================
+
+model MediaFile {
+  id           String       @id @default(cuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  url          String
+  alt          String?
+  title        String?
+  folderId     String?
+  folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  uploadedBy   String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @default(now())
+
+  @@index([folderId])
+  @@index([mimeType])
+}
+
+model MediaFolder {
+  id        String        @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    MediaFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  MediaFolder[] @relation("FolderHierarchy")
+  files     MediaFile[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @default(now())
+
+  @@index([parentId])
+}
+
+// =====================================================
+// ACTIVITY LOGS
+// =====================================================
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  resource   String
+  resourceId String?
+  details    String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+}
+
+// =====================================================
+// SYSTEM SETTINGS
+// =====================================================
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  category  String
+  public    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([key])
+  @@index([category])
+}
+
+// =====================================================
+// WEBSITE ANALYTICS
+// =====================================================
+
+model WebsiteVisit {
+  id        String   @id @default(cuid())
+  path      String
+  referrer  String?
+  ipAddress String?
+  userAgent String?
+  country   String?
+  city      String?
+  sessionId String?
+  duration  Int?
+  bounced   Boolean  @default(false)
+  visitedAt DateTime @default(now())
+
+  @@index([path])
+  @@index([visitedAt])
+}
+
+// =====================================================
+// SEO
+// =====================================================
+
+model SEOMetadata {
+  id          String   @id @default(cuid())
+  path        String   @unique
+  title       String?
+  description String?
+  keywords    String   @default("[]")
+  ogImage     String?
+  canonical   String?
+  noIndex     Boolean  @default(false)
+  noFollow    Boolean  @default(false)
+  schema      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  @@index([path])
+}
+
+// =====================================================
+// SEARCH ANALYTICS
+// =====================================================
+
+model SearchAnalytic {
+  id            String   @id @default(cuid())
+  query         String
+  category      String?
+  resultsCount  Int      @default(0)
+  clickedToolId String?
+  sessionId     String?
+  ipAddress     String?
+  userAgent     String?
+  country       String?
+  device        String   @default("desktop")
+  source        String   @default("organic")
+  createdAt     DateTime @default(now())
+
+  @@index([query])
+  @@index([createdAt])
+  @@index([resultsCount])
+}
+
+// =====================================================
+// REVENUE TRACKING
+// =====================================================
+
+model RevenueTransaction {
+  id                 String            @id @default(cuid())
+  type               String            // "AFFILIATE_EARNING", "SUBSCRIPTION", "AD_REVENUE", "FEATURED_LISTING", "REFUND"
+  amount             Int               @default(0) // Stored in cents for precision
+  currency           String            @default("USD")
+  status             String            @default("PENDING") // "PENDING", "COMPLETED", "REFUNDED", "FAILED"
+  fee                Int?              // Platform fee in cents
+  netAmount          Int?              // Net amount after fees in cents
+  toolId             String?
+  tool               Tool?             @relation(fields: [toolId], references: [id], onDelete: SetNull)
+  companyId          String?
+  company            Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  affiliatePartnerId String?
+  affiliatePartner   AffiliatePartner? @relation(fields: [affiliatePartnerId], references: [id], onDelete: SetNull)
+  advertisementId    String?
+  subscriptionId     String?
+  invoiceId          String?
+  description        String?
+  metadata           String?           // JSON for additional data
+  transactionDate    DateTime          @default(now())
+  confirmedAt        DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @default(now())
+
+  @@index([type])
+  @@index([status])
+  @@index([transactionDate])
+  @@index([affiliatePartnerId])
+  @@index([toolId])
+}
+
+// =====================================================
+// NEWSLETTER CAMPAIGNS
+// =====================================================
+
+model NewsletterCampaign {
+  id               String    @id @default(cuid())
+  name             String
+  subject          String
+  content          String?
+  sentAt           DateTime?
+  recipientCount   Int       @default(0)
+  openCount        Int       @default(0)
+  clickCount       Int       @default(0)
+  unsubscribeCount Int       @default(0)
+  bounceCount      Int       @default(0)
+  status           String    @default("draft")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now())
+  postId           String?
+  post             BlogPost? @relation(fields: [postId], references: [id], onDelete: SetNull)
+  metadata         String?
+
+  @@index([sentAt])
+  @@index([postId])
+}
+
+// =====================================================
+// TOOL VIEW ANALYTICS
+// =====================================================
+
+model ToolView {
+  id               String   @id @default(cuid())
+  toolId           String
+  tool             Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  sessionId        String?
+  ipAddress        String?
+  userAgent        String?
+  country          String?
+  device           String   @default("desktop")
+  referrer         String?
+  durationSeconds  Int?
+  scrolledPercent  Int      @default(0)
+  clickedAffiliate Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+   @@index([toolId])
+   @@index([createdAt])
+ }
+
+// =====================================================
+// AGENT SYSTEM MODELS
+// =====================================================
+
+ model AgentTask {
+   id          String   @id @default(cuid())
+   agentId     String
+   name        String
+   status      String   @default("pending")
+   priority    Int      @default(0)
+   input       String?
+   output      String?
+   startedAt   DateTime?
+   completedAt DateTime?
+   nextRunAt   DateTime?
+   lastRunAt   DateTime?
+   error       String?
+   retryCount  Int      @default(0)
+   maxRetries  Int      @default(3)
+   createdAt   DateTime @default(now())
+   updatedAt   DateTime @default(now())
+
+   @@index([agentId, status])
+   @@index([nextRunAt])
+   @@index([name])
+ }
+
+ model AgentProposal {
+   id              String   @id @default(cuid())
+   agentId         String
+   type            String
+   action          String
+   payload         String
+   status          String   @default("pending")
+   priority        Int      @default(0)
+   approvedBy      String?
+   approvedAt      DateTime?
+   rejectionReason String?
+   createdAt       DateTime @default(now())
+   updatedAt       DateTime @default(now())
+
+   @@index([status, priority])
+   @@index([agentId])
+ }
+
+ model AgentState {
+   id        String   @id @default(cuid())
+   key       String   @unique
+   value     String
+   version   Int      @default(1)
+   lockedBy  String?
+   lockedAt  DateTime?
+   createdAt DateTime @default(now())
+   updatedAt DateTime @default(now())
+ }
