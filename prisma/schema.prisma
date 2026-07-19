@@ -1,12 +1,12 @@
-// This is your Prisma schema file for LOCAL DEVELOPMENT with SQLite
-// For production, switch to PostgreSQL by changing the provider and URL
+// This is your Prisma schema file for PostgreSQL production
+// DATABASE_URL should point to your PostgreSQL database (e.g., Supabase)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
