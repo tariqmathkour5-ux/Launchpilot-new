@@ -340,12 +340,16 @@ model Tool {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  review      Review?
-  alternative Alternative?
-  faqs        Faq[]
-  clicks      AffiliateClick[]
-  views       ToolView[]
+  review              Review?
+  alternative         Alternative?
+  faqs                Faq[]
+  clicks              AffiliateClick[]
+  views               ToolView[]
+  reviews             UserReview[]
   revenueTransactions RevenueTransaction[]
+  affiliateLinks      AffiliateLink[]
+  featuredListings    FeaturedListing[]
+  adCampaigns         AdCampaign[]
 
   @@index([categoryId])
   @@index([published])
@@ -582,10 +586,60 @@ model Company {
 
   tools       Tool[]
   revenueTransactions RevenueTransaction[]
+  members     CompanyMember[]
+  leads       CompanyLead[]
+  verifications CompanyVerification[]
 
   @@index([slug])
   @@index([status])
   @@index([verified])
+}
+
+model CompanyMember {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  role      String   @default("editor")
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, userId])
+  @@index([companyId])
+  @@index([userId])
+  @@index([status])
+}
+
+model CompanyLead {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String?
+  email     String?
+  phone     String?
+  status    String   @default("new")
+  source    String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+}
+
+model CompanyVerification {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  status    String   @default("pending")
+  document  String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
 }
 
 // =====================================================
@@ -595,6 +649,7 @@ model Company {
 model UserReview {
   id        String   @id @default(cuid())
   toolId    String
+  tool      Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rating    Float
@@ -618,36 +673,83 @@ model UserReview {
 // =====================================================
 
 model AffiliateClick {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   toolId    String
-  tool      Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  tool      Tool              @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  partnerId String?
+  partner   AffiliatePartner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  linkId    String?
   source    String?
   medium    String?
   campaign  String?
+  term      String?
+  content   String?
   ipAddress String?
   userAgent String?
   referrer  String?
-  clickedAt DateTime @default(now())
+  country   String?
+  device    String?
+  converted Boolean           @default(false)
+  conversionValue Int?
+  clickedAt DateTime          @default(now())
 
   @@index([toolId])
+  @@index([partnerId])
+  @@index([linkId])
   @@index([clickedAt])
+  @@index([converted])
 }
 
 model AffiliatePartner {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  email       String   @unique
-  code        String   @unique
-  commission  Float    @default(10.0)
-  status      String   @default("ACTIVE")
-  clicks      Int      @default(0)
-  conversions Int      @default(0)
-  earnings    Float    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  email       String    @unique
+  code        String    @unique
+  apiToken    String?   @unique
+  commission  Float     @default(10.0)
+  commissionType String @default("percentage")
+  fixedCommission Int?
+  status      String    @default("ACTIVE")
+  clicks      Int       @default(0)
+  conversions Int       @default(0)
+  earnings    Float     @default(0)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  affiliateClicks     AffiliateClick[]
+  revenueTransactions RevenueTransaction[]
+  affiliateLinks      AffiliateLink[]
 
   @@index([code])
+  @@index([apiToken])
   @@index([status])
+}
+
+model AffiliateLink {
+  id          String           @id @default(cuid())
+  partnerId   String
+  partner     AffiliatePartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  toolId      String
+  tool        Tool             @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  slug        String           @unique
+  url         String
+  source      String?
+  medium      String?
+  campaign    String?
+  term        String?
+  content     String?
+  isActive    Boolean          @default(true)
+  clicks      Int              @default(0)
+  conversions Int              @default(0)
+  earnings    Float            @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now())
+
+  @@index([partnerId])
+  @@index([toolId])
+  @@index([slug])
+  @@index([isActive])
 }
 
 // =====================================================
@@ -655,24 +757,115 @@ model AffiliatePartner {
 // =====================================================
 
 model Advertisement {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  imageUrl        String?
+  linkUrl         String
+  position        String
+  type            String
+  startDate       DateTime
+  endDate         DateTime
+  clicks          Int      @default(0)
+  impressions     Int      @default(0)
+  budget          Int?
+  spent           Int      @default(0)
+  dailyBudget     Int?
+  targetUrl       String?
+  targetAudience  String?
+  status          String   @default("DRAFT")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  adImpressions AdImpression[]
+  adClicks      AdClick[]
+
+  @@index([position])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model AdImpression {
+  id              String        @id @default(cuid())
+  advertisementId String
+  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  sessionId       String?
+  ipAddress       String?
+  userAgent       String?
+  country         String?
+  device          String?
+  cost            Int?          // Cost per impression in cents (CPM model)
+  createdAt       DateTime      @default(now())
+
+  @@index([advertisementId])
+  @@index([createdAt])
+}
+
+model AdClick {
+  id              String        @id @default(cuid())
+  advertisementId String
+  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  sessionId       String?
+  ipAddress       String?
+  userAgent       String?
+  country         String?
+  device          String?
+  cost            Int?          // Cost per click in cents (CPC model)
+  converted       Boolean       @default(false)
+  conversionValue Int?          // Value in cents if converted
+  createdAt       DateTime      @default(now())
+
+  @@index([advertisementId])
+  @@index([createdAt])
+}
+
+// =====================================================
+// FEATURED / SPONSORED LISTINGS
+// =====================================================
+
+model FeaturedListing {
   id          String   @id @default(cuid())
-  title       String
-  description String?
-  imageUrl    String?
-  linkUrl     String
-  position    String
-  type        String
+  toolId      String
+  tool        Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  type        String   @default("featured")
+  label       String?
   startDate   DateTime
   endDate     DateTime
-  clicks      Int      @default(0)
-  impressions Int      @default(0)
-  budget      Float?
-  spent       Float    @default(0)
+  amount      Int
+  status      String   @default("active")
+  sortOrder   Int      @default(0)
+  metadata    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([toolId])
+  @@index([type])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@index([sortOrder])
+}
+
+// =====================================================
+// AD CAMPAIGNS (for tool-specific promotions)
+// =====================================================
+
+model AdCampaign {
+  id          String   @id @default(cuid())
+  toolId      String
+  tool        Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  name        String
+  budget      Int
+  spent       Int      @default(0)
+  dailyBudget Int?
+  startDate   DateTime
+  endDate     DateTime
+  targetClicks    Int?
+  targetImpressions Int?
   status      String   @default("DRAFT")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([position])
+  @@index([toolId])
   @@index([status])
 }
 
@@ -887,23 +1080,24 @@ model SearchAnalytic {
 // =====================================================
 
 model RevenueTransaction {
-  id                  String   @id @default(cuid())
-  type                String
-  amount              Float    @default(0)
-  currency            String   @default("USD")
-  status              String   @default("PENDING")
-  toolId              String?
-  tool                Tool?    @relation(fields: [toolId], references: [id], onDelete: SetNull)
-  companyId           String?
-  company             Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  affiliatePartnerId  String?
-  advertisementId     String?
-  description         String?
-  metadata            String?
-  transactionDate     DateTime @default(now())
-  confirmedAt         DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String            @id @default(cuid())
+  type               String
+  amount             Float             @default(0)
+  currency           String            @default("USD")
+  status             String            @default("PENDING")
+  toolId             String?
+  tool               Tool?             @relation(fields: [toolId], references: [id], onDelete: SetNull)
+  companyId          String?
+  company            Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  affiliatePartnerId String?
+  affiliatePartner   AffiliatePartner? @relation(fields: [affiliatePartnerId], references: [id], onDelete: SetNull)
+  advertisementId    String?
+  description        String?
+  metadata           String?
+  transactionDate    DateTime          @default(now())
+  confirmedAt        DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   @@index([type])
   @@index([status])
@@ -957,4 +1151,56 @@ model ToolView {
 
   @@index([toolId])
   @@index([createdAt])
+}
+
+model AgentTask {
+  id          String   @id @default(cuid())
+  agentId     String
+  name        String
+  status      String   @default("pending")
+  priority    Int      @default(0)
+  input       String?
+  output      String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  nextRunAt   DateTime?
+  lastRunAt   DateTime?
+  error       String?
+  retryCount  Int      @default(0)
+  maxRetries  Int      @default(3)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([agentId, status])
+  @@index([nextRunAt])
+  @@index([name])
+}
+
+model AgentProposal {
+  id              String   @id @default(cuid())
+  agentId         String
+  type            String
+  action          String
+  payload         String
+  status          String   @default("pending")
+  priority        Int      @default(0)
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, priority])
+  @@index([agentId])
+}
+
+model AgentState {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  version   Int      @default(1)
+  lockedBy  String?
+  lockedAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

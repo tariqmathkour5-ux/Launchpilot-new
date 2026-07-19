@@ -79,7 +79,7 @@ export async function sendCompanyNotification(
       VALUES (
         gen_random_uuid()::text,
         ${userId},
-        ${type}::"NotificationType",
+        ${type},
         ${title},
         ${message},
         ${JSON.stringify(data || {})}::jsonb,

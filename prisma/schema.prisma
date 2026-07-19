@@ -67,7 +67,7 @@ model UserSettings {
   weeklyToolDigest   Boolean   @default(true)
   lastDigestSentAt   DateTime?
   createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id])
 
@@ -85,7 +85,7 @@ model PasswordResetToken {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([token])
   @@index([userId])
@@ -139,15 +139,15 @@ model SubscriptionPlan {
   name         String
   slug         String   @unique
   description  String?
-  monthlyPrice Int      // Stored in cents (integer) for precision
-  yearlyPrice  Int      // Stored in cents (integer) for precision
+  monthlyPrice Int
+  yearlyPrice  Int
   trialDays    Int      @default(0)
   features     String   @default("[]")
   limits       String   @default("{}")
   sortOrder    Int      @default(0)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   subscriptions UserSubscription[]
 
@@ -175,7 +175,7 @@ model UserSubscription {
   stripeSubscriptionId String?
   stripePriceId        String?
   createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   user   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   events SubscriptionEvent[]
@@ -208,18 +208,17 @@ model SubscriptionCoupon {
   code               String    @unique
   name               String?
   description        String?
-  discountType       String    // "percentage" or "fixed"
-  discountValue      Float     // Percentage (e.g. 20) or fixed amount in cents
+  discountType       String
+  discountValue      Float
   currency           String    @default("USD")
   maxRedemptions     Int?
   currentRedemptions Int       @default(0)
-  applicablePlans    String    @default("[]") // JSON array of plan slugs
-  minAmount          Int?      // Minimum amount in cents for coupon to apply
+  applicablePlans    String    @default("[]")
   validFrom          DateTime  @default(now())
   validUntil         DateTime?
   isActive           Boolean   @default(true)
   createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([code])
   @@index([isActive])
@@ -234,7 +233,7 @@ model UsageTracking {
   periodStart DateTime
   periodEnd   DateTime
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([userId, metric, periodStart])
   @@index([userId])
@@ -247,14 +246,14 @@ model Invoice {
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscriptionId String?
   invoiceNumber  String    @unique
-  amount         Int       // Stored in cents for precision
+  amount         Int
   currency       String    @default("USD")
   status         String    @default("pending")
-  lineItems      String?   // JSON array of line items
+  lineItems      String?
   dueDate        DateTime?
   paidAt         DateTime?
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([userId])
   @@index([status])
@@ -268,17 +267,17 @@ model Invoice {
 model BillingTransaction {
   id              String   @id @default(cuid())
   userId          String
-  type            String   // "subscription", "refund", "credit", "debit", "payout"
-  amount          Int      // Stored in cents (integer) for precision
+  type            String
+  amount          Int
   currency        String   @default("USD")
-  status          String   @default("pending") // "pending", "completed", "failed", "refunded"
+  status          String   @default("pending")
   description     String?
-  referenceId     String?  // ID of related entity (subscription, invoice, etc.)
-  referenceType   String?  // "subscription", "invoice", "payout"
-  metadata        String?  // JSON for additional data
+  referenceId     String?
+  referenceType   String?
+  metadata        String?
   processedAt     DateTime?
   createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([userId])
   @@index([type])
@@ -298,7 +297,7 @@ model UserRole {
   level       Int      @default(0)
   isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   users       User[]
   permissions Permission[]
@@ -314,7 +313,7 @@ model Permission {
   action      String
   description String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   roles UserRole[]
 
@@ -334,7 +333,7 @@ model Category {
   icon        String?
   order       Int      @default(0)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   tools Tool[]
 
@@ -368,7 +367,7 @@ model Tool {
   authorId     String?
   author       User?    @relation(fields: [authorId], references: [id])
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   review              Review?
   alternative         Alternative?
@@ -396,7 +395,7 @@ model Review {
   summary   String?
   authorId  String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([rating])
 }
@@ -407,7 +406,7 @@ model Alternative {
   tool      Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
   content   String
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Faq {
@@ -418,7 +417,7 @@ model Faq {
   answer    String
   order     Int      @default(0)
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([toolId])
 }
@@ -431,7 +430,7 @@ model BlogCategory {
   icon        String?
   order       Int      @default(0)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   posts     BlogPost[]
   templates BlogPostTemplate[]
@@ -458,7 +457,7 @@ model BlogPost {
   authorId       String?
   author         User?         @relation(fields: [authorId], references: [id])
   createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   tags           String        @default("[]")
 
   seoTitle        String?
@@ -486,7 +485,7 @@ model BlogTag {
   name      String   @unique
   slug      String   @unique
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   blogPostTags BlogPostTag[]
 
@@ -517,7 +516,7 @@ model BlogComment {
   content     String
   status      String   @default("PENDING")
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([postId])
   @@index([userId])
@@ -575,7 +574,7 @@ model BlogPostApproval {
 }
 
 model BlogPostTemplate {
-  id              String        @id @default(cuid())
+  id              String    @id @default(cuid())
   name            String
   description     String?
   titleTemplate   String?
@@ -583,9 +582,9 @@ model BlogPostTemplate {
   categoryId      String?
   category        BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdById     String?
-  createdBy       User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @default(now())
+  createdBy       User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([categoryId])
 }
@@ -612,14 +611,64 @@ model Company {
   ownerId      String?
   owner        User?    @relation(fields: [ownerId], references: [id])
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   tools               Tool[]
   revenueTransactions RevenueTransaction[]
+  members             CompanyMember[]
+  leads               CompanyLead[]
+  verifications       CompanyVerification[]
 
   @@index([slug])
   @@index([status])
   @@index([verified])
+}
+
+model CompanyMember {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  role      String   @default("editor")
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, userId])
+  @@index([companyId])
+  @@index([userId])
+  @@index([status])
+}
+
+model CompanyLead {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String?
+  email     String?
+  phone     String?
+  status    String   @default("new")
+  source    String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+}
+
+model CompanyVerification {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  status    String   @default("pending")
+  document  String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
 }
 
 // =====================================================
@@ -640,7 +689,7 @@ model UserReview {
   verified  Boolean  @default(false)
   helpful   Int      @default(0)
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([toolId, userId])
   @@index([toolId])
@@ -658,19 +707,19 @@ model AffiliateClick {
   tool      Tool              @relation(fields: [toolId], references: [id], onDelete: Cascade)
   partnerId String?
   partner   AffiliatePartner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
-  linkId    String?           // Reference to the generated affiliate link
+  linkId    String?
   source    String?
   medium    String?
   campaign  String?
-  term      String?           // UTM term
-  content   String?           // UTM content
+  term      String?
+  content   String?
   ipAddress String?
   userAgent String?
   referrer  String?
   country   String?
-  device    String?           // "desktop", "mobile", "tablet"
+  device    String?
   converted Boolean           @default(false)
-  conversionValue Int?        // Value in cents if converted
+  conversionValue Int?
   clickedAt DateTime          @default(now())
 
   @@index([toolId])
@@ -686,16 +735,16 @@ model AffiliatePartner {
   email       String    @unique
   code        String    @unique
   apiToken    String?   @unique
-  commission  Float     @default(10.0) // Percentage
-  commissionType String @default("percentage") // "percentage" or "fixed"
-  fixedCommission Int?  // Fixed amount in cents per conversion
+  commission  Float     @default(10.0)
+  commissionType String @default("percentage")
+  fixedCommission Int?
   status      String    @default("ACTIVE")
   clicks      Int       @default(0)
   conversions Int       @default(0)
-  earnings    Float     @default(0) // In cents for precision
+  earnings    Float     @default(0)
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   affiliateClicks     AffiliateClick[]
   revenueTransactions RevenueTransaction[]
@@ -712,19 +761,19 @@ model AffiliateLink {
   partner     AffiliatePartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   toolId      String
   tool        Tool             @relation(fields: [toolId], references: [id], onDelete: Cascade)
-  slug        String           @unique // Short unique slug for the link
-  url         String           // The full affiliate URL
-  source      String?          // Default UTM source
-  medium      String?          // Default UTM medium
-  campaign    String?          // Default UTM campaign
-  term        String?          // Default UTM term
-  content     String?          // Default UTM content
+  slug        String           @unique
+  url         String
+  source      String?
+  medium      String?
+  campaign    String?
+  term        String?
+  content     String?
   isActive    Boolean          @default(true)
   clicks      Int              @default(0)
   conversions Int              @default(0)
-  earnings    Float            @default(0) // In cents
+  earnings    Float            @default(0)
   createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([partnerId])
   @@index([toolId])
@@ -740,16 +789,16 @@ model FeaturedListing {
   id          String   @id @default(cuid())
   toolId      String
   tool        Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
-  type        String   @default("featured") // "featured", "sponsored", "promoted"
-  label       String?  // Custom label like "Sponsored", "Partner", etc.
+  type        String   @default("featured")
+  label       String?
   startDate   DateTime
   endDate     DateTime
-  amount      Int      // Amount paid in cents
-  status      String   @default("active") // "active", "expired", "cancelled"
-  sortOrder   Int      @default(0) // Higher = more prominent
-  metadata    String?  // JSON for additional data
+  amount      Int
+  status      String   @default("active")
+  sortOrder   Int      @default(0)
+  metadata    String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([toolId])
   @@index([type])
@@ -763,25 +812,25 @@ model FeaturedListing {
 // =====================================================
 
 model Advertisement {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  imageUrl    String?
-  linkUrl     String
-  position    String   // "sidebar", "header", "footer", "inline", "popup"
-  type        String   // "banner", "native", "popup", "video"
-  startDate   DateTime
-  endDate     DateTime
-  clicks      Int      @default(0)
-  impressions Int      @default(0)
-  budget      Int?     // Budget in cents
-  spent       Int      @default(0) // Spent in cents
-  dailyBudget Int?     // Daily budget in cents
-  targetUrl   String?  // Where the ad links to
-  targetAudience String? // JSON targeting criteria
-  status      String   @default("DRAFT") // "DRAFT", "ACTIVE", "PAUSED", "EXPIRED"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  imageUrl        String?
+  linkUrl         String
+  position        String
+  type            String
+  startDate       DateTime
+  endDate         DateTime
+  clicks          Int      @default(0)
+  impressions     Int      @default(0)
+  budget          Int?
+  spent           Int      @default(0)
+  dailyBudget     Int?
+  targetUrl       String?
+  targetAudience  String?
+  status          String   @default("DRAFT")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   adImpressions AdImpression[]
   adClicks      AdClick[]
@@ -800,7 +849,7 @@ model AdImpression {
   userAgent       String?
   country         String?
   device          String?
-  cost            Int?          // Cost per impression in cents (CPM model)
+  cost            Int?
   createdAt       DateTime      @default(now())
 
   @@index([advertisementId])
@@ -816,9 +865,9 @@ model AdClick {
   userAgent       String?
   country         String?
   device          String?
-  cost            Int?          // Cost per click in cents (CPC model)
+  cost            Int?
   converted       Boolean       @default(false)
-  conversionValue Int?          // Value in cents if converted
+  conversionValue Int?
   createdAt       DateTime      @default(now())
 
   @@index([advertisementId])
@@ -834,16 +883,16 @@ model AdCampaign {
   toolId      String
   tool        Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
   name        String
-  budget      Int      // Total budget in cents
-  spent       Int      @default(0) // Spent in cents
-  dailyBudget Int?     // Daily budget in cents
+  budget      Int
+  spent       Int      @default(0)
+  dailyBudget Int?
   startDate   DateTime
   endDate     DateTime
   targetClicks    Int?
   targetImpressions Int?
-  status      String   @default("DRAFT") // "DRAFT", "ACTIVE", "PAUSED", "COMPLETED"
+  status      String   @default("DRAFT")
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([toolId])
   @@index([status])
@@ -858,9 +907,9 @@ model Coupon {
   code         String   @unique
   description  String?
   discount     Float
-  discountType String   // "PERCENTAGE" or "FIXED"
-  minPurchase  Int?     // Minimum purchase in cents
-  maxDiscount  Int?     // Maximum discount in cents
+  discountType String
+  minPurchase  Int?
+  maxDiscount  Int?
   usageLimit   Int?
   usedCount    Int      @default(0)
   toolId       String?
@@ -868,7 +917,7 @@ model Coupon {
   endDate      DateTime
   status       String   @default("ACTIVE")
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([code])
   @@index([status])
@@ -887,7 +936,7 @@ model NewsletterSubscriber {
   subscribedAt   DateTime  @default(now())
   unsubscribedAt DateTime?
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([email])
   @@index([status])
@@ -898,16 +947,16 @@ model NewsletterSubscriber {
 // =====================================================
 
 model Notification {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      String
   title     String
   message   String
   data      String?
-  read      Boolean   @default(false)
+  read      Boolean  @default(false)
   readAt    DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([read])
@@ -932,7 +981,7 @@ model MediaFile {
   folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   uploadedBy   String?
   createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@index([folderId])
   @@index([mimeType])
@@ -946,7 +995,7 @@ model MediaFolder {
   children  MediaFolder[] @relation("FolderHierarchy")
   files     MediaFile[]
   createdAt DateTime      @default(now())
-  updatedAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@index([parentId])
 }
@@ -984,7 +1033,7 @@ model SystemSetting {
   category  String
   public    Boolean  @default(false)
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([key])
   @@index([category])
@@ -1027,7 +1076,7 @@ model SEOMetadata {
   noFollow    Boolean  @default(false)
   schema      String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([path])
 }
@@ -1061,12 +1110,10 @@ model SearchAnalytic {
 
 model RevenueTransaction {
   id                 String            @id @default(cuid())
-  type               String            // "AFFILIATE_EARNING", "SUBSCRIPTION", "AD_REVENUE", "FEATURED_LISTING", "REFUND"
-  amount             Int               @default(0) // Stored in cents for precision
+  type               String
+  amount             Int               @default(0)
   currency           String            @default("USD")
-  status             String            @default("PENDING") // "PENDING", "COMPLETED", "REFUNDED", "FAILED"
-  fee                Int?              // Platform fee in cents
-  netAmount          Int?              // Net amount after fees in cents
+  status             String            @default("PENDING")
   toolId             String?
   tool               Tool?             @relation(fields: [toolId], references: [id], onDelete: SetNull)
   companyId          String?
@@ -1074,20 +1121,16 @@ model RevenueTransaction {
   affiliatePartnerId String?
   affiliatePartner   AffiliatePartner? @relation(fields: [affiliatePartnerId], references: [id], onDelete: SetNull)
   advertisementId    String?
-  subscriptionId     String?
-  invoiceId          String?
   description        String?
-  metadata           String?           // JSON for additional data
+  metadata           String?
   transactionDate    DateTime          @default(now())
   confirmedAt        DateTime?
   createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   @@index([type])
   @@index([status])
   @@index([transactionDate])
-  @@index([affiliatePartnerId])
-  @@index([toolId])
 }
 
 // =====================================================
@@ -1107,7 +1150,7 @@ model NewsletterCampaign {
   bounceCount      Int       @default(0)
   status           String    @default("draft")
   createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   postId           String?
   post             BlogPost? @relation(fields: [postId], references: [id], onDelete: SetNull)
   metadata         String?
@@ -1159,7 +1202,7 @@ model ToolView {
    retryCount  Int      @default(0)
    maxRetries  Int      @default(3)
    createdAt   DateTime @default(now())
-   updatedAt   DateTime @default(now())
+   updatedAt   DateTime @updatedAt
 
    @@index([agentId, status])
    @@index([nextRunAt])
@@ -1178,7 +1221,7 @@ model ToolView {
    approvedAt      DateTime?
    rejectionReason String?
    createdAt       DateTime @default(now())
-   updatedAt       DateTime @default(now())
+   updatedAt       DateTime @updatedAt
 
    @@index([status, priority])
    @@index([agentId])
@@ -1192,5 +1235,5 @@ model ToolView {
    lockedBy  String?
    lockedAt  DateTime?
    createdAt DateTime @default(now())
-   updatedAt DateTime @default(now())
+   updatedAt DateTime @updatedAt
  }

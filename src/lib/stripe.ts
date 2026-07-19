@@ -8,7 +8,7 @@ if (!stripeSecretKey) {
 }
 
 export const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, {
-  apiVersion: '2025-10-16' as Stripe.ApiVersion,
+  apiVersion: '2026-06-24.dahlia',
 }) : null;
 
 export function isStripeConfigured(): boolean {

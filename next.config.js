@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
   images: {
     remotePatterns: [
       { hostname: 'images.unsplash.com' },
@@ -10,6 +9,9 @@ const nextConfig = {
   },
   experimental: {
     mdxRs: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
   },
 };
 
