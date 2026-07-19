@@ -1,4 +1,4 @@
-cimport { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCompanySession, hasPermission, sendCompanyNotification } from '@/lib/company/auth';
 
