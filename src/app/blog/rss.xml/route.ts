@@ -4,7 +4,7 @@ import { buildBlogRssFeed } from '@/lib/rss';
 
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
-export const revalidate = 3600; // Revalidate every hour, matching the other public blog pages
+export const dynamic = 'force-dynamic'; // Prevent static generation during build - requires runtime DB connection
 
 export async function GET() {
   // getPublished() filters published: true at the query level, so drafts

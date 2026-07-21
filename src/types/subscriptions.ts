@@ -1,4 +1,4 @@
-evexport interface PlanLimits {
+export interface PlanLimits {
   favorites: number;
   collections: number;
   collection_items: number;
